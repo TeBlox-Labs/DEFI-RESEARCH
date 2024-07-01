@@ -92,3 +92,126 @@ This guide explains the process of selecting tokens, extracting token addresses,
 ## Conclusion
 
 By following these steps, you can programmatically determine the best swap route on a DEX. This process involves selecting tokens, extracting their addresses, identifying all possible routes, validating these routes based on liquidity, and simulating the swap to find the optimal path.
+
+
+```markdown
+# Liquidity Pool Routing: Functional Level Explanation
+
+Liquidity pool routing on a functional level involves understanding the mechanics and operations of the underlying smart contracts, algorithms, and interactions within a decentralized exchange (DEX) ecosystem. Here’s a functional breakdown of the process:
+
+## Data Structures
+
+First, let's define the necessary data structures and interfaces:
+
+```solidity
+pragma solidity ^0.8.0;
+
+interface IPool {
+    function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256 amountOut);
+}
+
+interface IPoolFactory {
+    function isPool(address pool) external view returns (bool);
+}
+
+struct Route {
+    address from;
+    address to;
+    bool stable;
+    address factory;
+}
+```
+
+## Example Scenario
+
+Let's say we want to swap 100 DAI for USDC through two routes:
+1. DAI -> ETH
+2. ETH -> USDC
+
+Assume we have the following pools:
+- `DAI/ETH` pool created by `Factory A`
+- `ETH/USDC` pool created by `Factory B`
+
+## Function Breakdown with Example
+
+We'll walk through the function step-by-step using the example scenario.
+
+```solidity
+function getAmountsOut(uint256 amountIn, Route[] memory routes) public view returns (uint256[] memory amounts) {
+    if (routes.length < 1) revert InvalidPath();
+    
+    // Initialize the amounts array with length routes.length + 1
+    amounts = new uint256[](routes.length + 1);
+    // Set the initial input amount
+    amounts[0] = amountIn;
+    
+    // Get the number of routes
+    uint256 _length = routes.length;
+    
+    for (uint256 i = 0; i < _length; i++) {
+        // Determine the factory to use, default to defaultFactory if not specified
+        address factory = routes[i].factory == address(0) ? defaultFactory : routes[i].factory;
+        
+        // Get the pool address for the current route
+        address pool = poolFor(routes[i].from, routes[i].to, routes[i].stable, factory);
+        
+        // Check if the pool is valid
+        if (IPoolFactory(factory).isPool(pool)) {
+            // Calculate the output amount for the current step and store it in the amounts array
+            amounts[i + 1] = IPool(pool).getAmountOut(amounts[i], routes[i].from);
+        }
+    }
+}
+```
+
+## Example Execution
+
+Assume:
+- `amountIn = 100 DAI`
+- `Route[] memory routes = [Route({from: DAI, to: ETH, stable: false, factory: factoryA}), Route({from: ETH, to: USDC, stable: false, factory: factoryB})]`
+
+1. **Initial Input:**
+   - `amountIn = 100 DAI`
+   - `routes.length = 2`
+
+2. **First Iteration (i = 0):**
+   - `factory = factoryA`
+   - `pool = poolFor(DAI, ETH, false, factoryA)` // Assume this resolves to a valid pool address.
+   - `isPool(pool)` returns `true`.
+
+   ```solidity
+   amounts[0] = 100; // Initial amountIn
+   amounts[1] = IPool(pool).getAmountOut(100, DAI); // Assume this returns 0.05 ETH
+   ```
+
+   Updated `amounts` array:
+   - `amounts = [100, 0.05 ETH]`
+
+3. **Second Iteration (i = 1):**
+   - `factory = factoryB`
+   - `pool = poolFor(ETH, USDC, false, factoryB)` // Assume this resolves to a valid pool address.
+   - `isPool(pool)` returns `true`.
+
+   ```solidity
+   amounts[2] = IPool(pool).getAmountOut(0.05 ETH, ETH); // Assume this returns 150 USDC
+   ```
+
+   Updated `amounts` array:
+   - `amounts = [100, 0.05 ETH, 150 USDC]`
+
+## Final Output
+
+The `amounts` array provides the resulting token amounts at each stage of the route:
+
+- Initial amount: 100 DAI
+- After first swap (DAI to ETH): 0.05 ETH
+- After second swap (ETH to USDC): 150 USDC
+
+## Summary
+
+- The function `getAmountsOut` calculates the output amounts for a series of token swaps based on the input amount and specified routes.
+- It iterates over each route, determining the appropriate pool and calculating the output amount using the `getAmountOut` function of each pool.
+- The example scenario demonstrates swapping 100 DAI for USDC through intermediate ETH, showcasing the intermediate values at each step.
+
+This detailed explanation and example provide a comprehensive understanding of how liquidity pool routing works at the functional level.
+```
