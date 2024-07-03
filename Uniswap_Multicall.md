@@ -193,3 +193,135 @@ calls[3] = Call({
 ```
 
 This array can now be passed to the `aggregate` function of the `Multicall` contract to fetch the balances in a single transaction.
+
+
+# Fetching ERC-20 Token Balances Using Multicall with Web3.js
+
+## Overview
+
+This guide explains how to use a deployed `Multicall` contract to fetch ERC-20 token balances for a given wallet address using Web3.js. The steps involve preparing call data, using the `Multicall` contract to batch the calls, and decoding the results.
+
+## Requirements
+
+- Node.js
+- Web3.js
+- Infura project ID or another Ethereum node provider
+
+## Step-by-Step Guide
+
+### 1. Initialize Web3
+
+Initialize Web3 with your Ethereum node provider (e.g., Infura).
+
+```javascript
+const Web3 = require('web3');
+const web3 = new Web3('https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID'); // Replace with your Infura project ID or other Ethereum node provider
+```
+
+### 2. Define Contract Details
+
+Provide the address and ABI for the `Multicall` contract and the simplified ABI for ERC-20 token contracts.
+
+```javascript
+// Multicall contract address and ABI (example, you need to use the actual deployed address and ABI)
+const multicallAddress = '0xYourMulticallContractAddress'; // Replace with your deployed Multicall contract address
+const multicallABI = [ /* Multicall ABI */ ]; // Replace with Multicall contract ABI
+
+// ERC-20 token contract ABI (simplified)
+const erc20ABI = [
+  {
+    "constant": true,
+    "inputs": [{ "name": "_owner", "type": "address" }],
+    "name": "balanceOf",
+    "outputs": [{ "name": "balance", "type": "uint256" }],
+    "type": "function"
+  }
+];
+```
+
+### 3. Set Wallet and Token Addresses
+
+Define the wallet address and an array of token addresses for which you want to check balances.
+
+```javascript
+// Wallet address to check balances
+const walletAddress = '0xWalletAddress'; // Replace with the actual wallet address
+
+// Token addresses
+const tokenAddresses = [
+  '0xTokenAddress1', // Replace with actual token contract addresses
+  '0xTokenAddress2',
+  '0xTokenAddress3',
+  '0xTokenAddress4'
+];
+```
+
+### 4. Prepare the Call Data
+
+Create an array of call data for the `balanceOf` function for each token.
+
+```javascript
+// Prepare the call data for the balanceOf function for each token
+const calls = tokenAddresses.map(tokenAddress => {
+  const contract = new web3.eth.Contract(erc20ABI, tokenAddress);
+  return {
+    target: tokenAddress,
+    callData: contract.methods.balanceOf(walletAddress).encodeABI()
+  };
+});
+```
+
+### 5. Create Multicall Contract Instance
+
+Instantiate the `Multicall` contract.
+
+```javascript
+// Multicall contract instance
+const multicallContract = new web3.eth.Contract(multicallABI, multicallAddress);
+```
+
+### 6. Aggregate Function Call
+
+Use the `aggregate` method of the `Multicall` contract to batch the calls and decode the results.
+
+```javascript
+// Call the aggregate function
+async function fetchBalances() {
+  try {
+    const aggregateResult = await multicallContract.methods.aggregate(
+      calls.map(call => [call.target, call.callData])
+    ).call();
+
+    const decodedBalances = aggregateResult.returnData.map(data =>
+      web3.eth.abi.decodeParameter('uint256', data)
+    );
+
+    return decodedBalances;
+  } catch (error) {
+    console.error('Error fetching balances:', error);
+    return [];
+  }
+}
+```
+
+### 7. Execute and Log Balances
+
+Fetch and log the token balances.
+
+```javascript
+// Fetch and log balances
+fetchBalances().then(balances => {
+  console.log('Balances:', balances);
+}).catch(error => {
+  console.error('Error fetching balances:', error);
+});
+```
+
+## Summary
+
+1. **Deploy**: Ensure the `Multicall` contract is deployed.
+2. **Prepare Call Data**: Encode the `balanceOf` function calls for the wallet address and token contracts.
+3. **Aggregate Calls**: Use the `Multicall` contract's `aggregate` function to batch and execute the calls.
+4. **Decode Results**: Decode the returned data to get the token balances.
+
+This approach efficiently retrieves multiple token balances with a single contract call, reducing gas costs and improving performance.
